@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Member Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='member.css') }}">
+</head>
+<body>
+    <h2 style="text-align:center;">Welcome, {{ member_email }}</h2>
+    <h3 style="text-align:center;">Your Assigned Tasks</h3>
+
+    <div class="logout-container">
+    <a href="{{ url_for('index') }}" class="logout-btn">🔒 Logout</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+        {% for task in tasks %}
+        <tr>
+            <td>{{ task[0] }}</td>
+            <td>{{ task[1] }}</td>
+            <td>{{ task[2] }}</td>
+            <td>{{ task[3] }}</td>
+            <td>
+                {% if task[3] != 'complete' %}
+                    <form action="{{ url_for('complete_task') }}" method="POST">
+                        <input type="hidden" name="title" value="{{ task[0] }}">
+                        <input type="hidden" name="email" value="{{ member_email }}">
+                        <button class="btn" type="submit">Mark Complete</button>
+                    </form>
+                {% else %}
+                    <button class="btn" disabled>✅ Completed</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

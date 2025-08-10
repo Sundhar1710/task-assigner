@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Task</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='edit_task.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>Edit Task - ID {{ task[0] }}</h2>
+        <form method="POST">
+        <label>Title:</label>
+        <input type="text" name="title" value="{{ task[1] }}" required>
+
+        <label>Description:</label>
+        <textarea name="description">{{ task[2] }}</textarea>
+
+        <label>Due Date:</label>
+        <input type="date" name="due_date" value="{{ task[3] }}" required>
+
+        <label>Status:</label>
+        <select name="status">
+            <option value="pending" {% if task[6] == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="complete" {% if task[6] == 'complete' %}selected{% endif %}>Complete</option>
+        </select>
+
+        <button type="submit">💾 Save</button>
+    </form>
+        <br><a href="/leader">⬅️ Back to Dashboard</a>
+    </div>
+</body>
+</html>
+
+
+

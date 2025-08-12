@@ -1,24 +1,183 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from db_config import get_connection
 from email_remainder import send_email
+import random, string
+from datetime import datetime
+
 app = Flask(__name__)
+app.secret_key = "yoursecretkey"  # Needed for sessions
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/check_leader', methods=['POST'])
-def check_leader():
-    code = request.form['leader_code']
-    if code == 'admin123':
-        return redirect(url_for('leader_dashboard'))
-    else:
-        return "<h3>❌ Invalid Leader Code</h3>"
+#manger login
+@app.route("/manager_login", methods=["GET", "POST"])
+def manager_login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
 
-@app.route('/check_member', methods=['POST'])
-def check_member():
-    team_id = request.form['team_id']
-    member_email = request.form['email']
-    return redirect(url_for('member_dashboard', team_id=team_id, member_email=member_email))
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM team_managers WHERE email=%s AND password=%s",
+            (email, password)
+        )
+        manager = cursor.fetchone()
+        conn.close()
+
+        if manager:
+            return redirect(url_for("managers_dashboard"))
+        else:
+            return redirect(url_for("manager_login"))
+
+    return render_template("manager_login.html")
+
+#manager dashboard
+@app.route("/managers_dashboard")
+def managers_dashboard():
+    if "manager_email" not in session:
+        return redirect(url_for("manager_login"))
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM teams ORDER BY created_at DESC")
+    teams = cursor.fetchall()
+    conn.close()
+
+    return render_template("manager_dashboard.html", teams=teams)
+
+#manager create team
+@app.route("/create_team", methods=["GET", "POST"])
+def create_team():
+    if "manager_email" not in session:
+        return redirect(url_for("manager_login"))
+
+    if request.method == "POST":
+        leader_email = request.form["leader_email"]
+        member_emails = request.form.getlist("member_email")
+
+        if not leader_email or not member_emails:
+            flash("Leader and at least one member email are required.")
+            return redirect(url_for("create_team"))
+
+        # Generate unique team_id
+        team_id = "TEAM" + ''.join(random.choices(string.digits, k=5))
+        characters = string.ascii_letters + string.digits
+        password = "".join(random.choices(characters, k=7))
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "INSERT INTO teams (team_id, leader_email, password) VALUES (%s, %s, %s)",
+            (team_id, leader_email, password)
+        )
+
+        for m_email in member_emails:
+            if m_email.strip():
+                cursor.execute(
+                    "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
+                    (team_id, m_email.strip())
+                )
+
+        conn.commit()
+        conn.close()
+
+        # Send email to team leader
+        subject = "✅ Your New Team ID"
+        body = f"Hello,\n\nYour team has been created successfully. \
+        \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
+        send_email(leader_email, subject, body)
+
+        return redirect(url_for("managers_dashboard"))
+
+    return render_template("create_team.html")
+
+#manager edit team
+@app.route("/edit_team/<team_id>", methods=["GET", "POST"])
+def edit_team(team_id):
+    if "manager_email" not in session:
+        return redirect(url_for("manager_login"))
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch existing team and members
+    cursor.execute("SELECT * FROM teams WHERE team_id = %s", (team_id,))
+    team = cursor.fetchone()
+
+    cursor.execute("SELECT member_email FROM team_members WHERE team_id = %s", (team_id,))
+    members = cursor.fetchall()
+
+    if request.method == "POST":
+        leader_email = request.form["leader_email"]
+        member_emails = request.form.getlist("member_email")
+
+        # Update leader email
+        cursor.execute("UPDATE teams SET leader_email = %s WHERE team_id = %s", (leader_email, team_id))
+
+        # Remove old members and insert new ones
+        cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
+        for m_email in member_emails:
+            if m_email.strip():
+                cursor.execute(
+                    "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
+                    (team_id, m_email.strip())
+                )
+
+        conn.commit()
+        conn.close()
+
+        flash("Team updated successfully!", "success")
+        return redirect(url_for("managers_dashboard"))
+
+    conn.close()
+    return render_template("edit_team.html", team=team, members=members)
+
+
+#leader login
+@app.route("/leader_login", methods=["GET", "POST"])
+def leader_login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM teams WHERE leader_email=%s AND password=%s", (email, password))
+            user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            flash("Leader login successful!", "success")
+            return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
+        else:
+            flash("Invalid Leader credentials!", "danger")
+
+    return render_template("leader_login.html")
+
+#member login
+@app.route("/member/login", methods=["GET", "POST"])
+def member_login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM team_members WHERE email=%s AND password=%s", (email, password))
+            user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            flash("Member login successful!", "success")
+            return redirect(url_for("member_dashboard"))  # change to member dashboard later
+        else:
+            flash("Invalid Member credentials!", "danger")
+
+    return render_template("member_login.html")
 
 
 @app.route('/leader')
@@ -52,7 +211,7 @@ def member_dashboard():
     return render_template("member_dashboard.html", tasks=tasks, member_email=member_email)
 
 
-@app.route('/add', methods=['GET', 'POST'])
+@app.route('/add_task', methods=['GET', 'POST'])
 def add_task():
     if request.method == 'POST':
         title = request.form['title']
@@ -83,7 +242,7 @@ def add_task():
 
     return render_template('add_task.html')
 
-@app.route('/edit/<int:task_id>', methods=['GET', 'POST'])
+@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 def edit_task(task_id):
     conn = get_connection()
     cursor = conn.cursor()

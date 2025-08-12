@@ -1,0 +1,61 @@
+/* Basic styling for body */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f7f9fc;
+    margin: 0;
+    padding: 0;
+}
+
+/* Center the form on the page */
+h2 {
+    text-align: center;
+    color: #333;
+}
+
+/* Form container */
+form {
+    max-width: 400px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Labels */
+label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Input fields */
+input[type="email"] {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+/* Button styling */
+button, input[type="submit"] {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Hover effect for buttons */
+button:hover, input[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+/* Add space between dynamically added inputs */
+#memberFields input {
+    margin-top: 8px;
+}

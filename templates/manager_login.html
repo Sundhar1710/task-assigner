@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='manager_login.css') }}">
+</head>
+<div class="container">
+    <h1>Welcome to the Task Management System</h1>
+
+    <div class="card member-card">
+        <h2>🧑‍🤝‍🧑 I'm a Admin</h2>
+        <form action="/manager_login" method="POST">
+            <input type="text" name="email" placeholder="Enter Email ID" required>
+            <input type="password" name="password" placeholder="Enter Password" required>
+            <button type="submit">Continue as Admin</button>
+        </form>
+    </div>    
+</div>
+</html>
+
+

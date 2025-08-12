@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Team</title>
+</head>
+<body>
+    <h2>Edit Team: {{ team.team_id }}</h2>
+
+    <form method="POST">
+        <label>Leader Email:</label><br>
+        <input type="email" name="leader_email" value="{{ team.leader_email }}" required><br><br>
+
+        <div id="memberFields">
+            {% for m in members %}
+                <div>
+                    <input type="email" name="member_email" value="{{ m.member_email }}" placeholder="Member Email" required>
+                    <button type="button" onclick="this.parentElement.remove()">❌</button>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="button" onclick="addMemberField()">+ Add Another Member</button><br>
+
+        <input type="submit" value="Update Team">
+    </form>
+    <script>
+        function addMemberField() 
+        {
+            let div = document.getElementById("memberFields");
+            let wrapper = document.createElement("div");
+
+            let input = document.createElement("input");
+            input.type = "email";
+            input.name = "member_email";
+            input.placeholder = "Member Email";
+            input.required = true;
+
+            let btn = document.createElement("button");
+            btn.type = "button";
+            btn.innerHTML = "❌";
+            btn.onclick = function() {
+                wrapper.remove();
+            };
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(btn);
+            div.appendChild(wrapper);
+        }
+    </script>
+
+</body>
+</html>

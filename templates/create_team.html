@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Team</title>
+    <link rel="stylesheet" href="{{url_for('static', filename='create_team.css')}}">
+</head>
+<body>
+    <h2>Create New Team</h2>
+    <form method="POST">
+        <label>Leader Email:</label><br>
+        <input type="email" name="leader_email" required><br><br>
+
+        <div id="memberFields">
+            <input type="email" name="member_email" placeholder="Member Email" required>
+        </div>
+        <br>
+        <button type="button" onclick="addMemberField()">+ Add Another Member</button>
+        <br><br>
+        <input type="submit" value="Create Team">
+    </form>
+    <script>
+    function addMemberField() {
+        let div = document.getElementById("memberFields");
+        let input = document.createElement("input");
+        input.type = "email";
+        input.name = "member_email";
+        input.placeholder = "Member Email";
+        div.appendChild(document.createElement("br"));
+        div.appendChild(input);
+    }
+
+    </script>
+</body>
+</html>

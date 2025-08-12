@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manager Dashboard</title>
+    <link rel="stylesheet" href="{{url_for('static', filename = 'manager.css')}}">
+</head>
+<body>
+    <h2>Welcome, {{ session.manager_email }}</h2>
+    <a href="{{ url_for('create_team') }}">+ Create New Team</a>
+    <br><br>
+
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Team ID</th>
+            <th>Leader Email</th>
+            <th>Created At</th>
+            <th>Action</th>
+        </tr>
+        {% for t in teams %}
+        <tr>
+            <td>{{ t[1] }}</td>
+            <td>{{ t[2] }}</td>
+            <td>{{ t[4] }}</td>
+            <td><a href="{{ url_for('edit_team', team_id=t[1]) }}">✏️ Edit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

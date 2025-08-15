@@ -9,6 +9,15 @@ h2 {
     color: #333;
 }
 
+.logout{
+    background: red; 
+    color: white; 
+    padding: 8px 12px; 
+    border-radius: 5px; 
+    text-decoration: none;
+}
+    
+
 a {
     display: inline-block;
     background-color: #007bff;

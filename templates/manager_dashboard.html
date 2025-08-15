@@ -8,6 +8,7 @@
     <h2>Welcome, {{ session.manager_email }}</h2>
     <a href="{{ url_for('create_team') }}">+ Create New Team</a>
     <br><br>
+    <a class="logout" href="{{ url_for('manager_logout') }}">Logout</a>
 
     <table border="1" cellpadding="5">
         <tr>

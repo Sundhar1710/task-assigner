@@ -73,6 +73,19 @@ button:hover {
     background-color: #1c5980;
 }
 
+a {
+    display: block;
+    margin-top: 20px;
+    text-align: center;
+    text-decoration: none;
+    color: #2980b9;
+    font-weight: bold;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
 @media (max-width: 600px) {
     .container {
         padding: 20px;

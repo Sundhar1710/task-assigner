@@ -15,7 +15,7 @@
         <textarea name="description">{{ task[2] }}</textarea>
 
         <label>Due Date:</label>
-        <input type="date" name="due_date" value="{{ task[3] }}" required>
+        <input type="date" id="due_date" name="due_date" value="{{ task[3] }}" required>
 
         <label>Status:</label>
         <select name="status">
@@ -27,6 +27,11 @@
     </form>
         <br><a href="/leader">⬅️ Back to Dashboard</a>
     </div>
+    <script>
+        // Set min date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById("due_date").setAttribute("min", today);
+    </script>
 </body>
 </html>
 

@@ -28,7 +28,9 @@ def manager_login():
         conn.close()
 
         if manager:
+            session["manager_email"] = email  # store login info in session
             return redirect(url_for("managers_dashboard"))
+
         else:
             return redirect(url_for("manager_login"))
 
@@ -136,6 +138,10 @@ def edit_team(team_id):
     conn.close()
     return render_template("edit_team.html", team=team, members=members)
 
+@app.route("/manager_logout")
+def manager_logout():
+    session.pop("manager_email", None)
+    return redirect(url_for("manager_login"))
 
 #leader login
 @app.route("/leader_login", methods=["GET", "POST"])
@@ -151,7 +157,6 @@ def leader_login():
         conn.close()
 
         if user:
-            flash("Leader login successful!", "success")
             return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
         else:
             flash("Invalid Leader credentials!", "danger")
@@ -162,17 +167,17 @@ def leader_login():
 @app.route("/member/login", methods=["GET", "POST"])
 def member_login():
     if request.method == "POST":
+        team_id = request.form["team_id"]
         email = request.form["email"]
-        password = request.form["password"]
-
+        
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM team_members WHERE email=%s AND password=%s", (email, password))
+            cursor.execute("SELECT * FROM team_members WHERE team_id=%s AND member_email=%s", (team_id, email))
             user = cursor.fetchone()
         conn.close()
 
         if user:
-            flash("Member login successful!", "success")
+            session["member_email"] = email
             return redirect(url_for("member_dashboard"))  # change to member dashboard later
         else:
             flash("Invalid Member credentials!", "danger")
@@ -192,8 +197,7 @@ def leader_dashboard():
 
 @app.route('/member_dashboard')
 def member_dashboard():
-    team_id = request.args.get('team_id')
-    member_email = request.args.get('member_email')
+    member_email = session.get('member_email')
 
     conn = get_connection()
     cursor = conn.cursor()

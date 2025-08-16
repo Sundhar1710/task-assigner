@@ -171,6 +171,25 @@ def edit_team(team_id):
     conn.close()
     return render_template("edit_team.html", team=team, members=members)
 
+@app.route("/delete_team/<team_id>")
+def delete_team(team_id):
+    record = team_id
+    if "manager_email" not in session:
+        return redirect(url_for("manager_login"))
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM tasks WHERE team_id = %s", (team_id,))
+    cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
+
+    cursor.execute("DELETE FROM teams WHERE team_id = %s", (team_id,))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("managers_dashboard"))
+
 @app.route("/manager_logout")
 def manager_logout():
     session.pop("manager_email", None)
@@ -282,10 +301,13 @@ def add_task():
 
         conn = get_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT team_id FROM teams WHERE leader_email = %s",(assigned_email,))
+        temp = cursor.fetchone()
+        team_id = temp[0]
         cursor.execute("""
-            INSERT INTO tasks (title, description, due_date, email, status, assigned_by)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (title, description, due_date, email, 'pending', assigned_email))
+            INSERT INTO tasks (title, description, due_date, email, status, 
+            assigned_by, team_id) VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (title, description, due_date, email, 'pending', assigned_email, team_id))
         conn.commit()
         cursor.close()
         conn.close()

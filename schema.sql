@@ -10,3 +10,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status ENUM('Pending', 'Completed') DEFAULT 'Pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE teams
+ADD CONSTRAINT fk_manager
+FOREIGN KEY (manager_id) REFERENCES team_managers(manager_id)
+ON DELETE CASCADE;

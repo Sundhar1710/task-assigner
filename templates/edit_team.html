@@ -12,6 +12,7 @@
         <input type="email" name="leader_email" value="{{ team.leader_email }}" required>
 
         <div id="memberFields">
+            <label>Members Email:</label>
             {% for m in members %}
                 <div>
                     <input type="email" name="member_email" value="{{ m.member_email }}" placeholder="Member Email" required>

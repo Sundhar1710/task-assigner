@@ -1,11 +1,21 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from db_config import get_connection
 from email_remainder import send_email
+import mysql.connector
 import random, string
+import os, secrets
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "yoursecretkey"  # Needed for sessions
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))  # Needed for sessions
+
+@app.after_request
+def add_header(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "-1"
+    return response
+
 
 @app.route('/')
 def index():
@@ -41,10 +51,16 @@ def manager_login():
 def managers_dashboard():
     if "manager_email" not in session:
         return redirect(url_for("manager_login"))
+    
+    email = session.get("manager_email")
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM teams ORDER BY created_at DESC")
+    cursor.execute("SELECT manager_id FROM team_managers where email = %s",(email,))
+    temp = cursor.fetchone()
+    manager_id = temp[0]
+
+    cursor.execute("SELECT * FROM teams where manager_id = %s ORDER BY created_at DESC",(manager_id,))
     teams = cursor.fetchall()
     conn.close()
 
@@ -60,11 +76,13 @@ def create_team():
         leader_email = request.form["leader_email"]
         member_emails = request.form.getlist("member_email")
 
-        if not leader_email or not member_emails:
+        email = session.get('manager_email')
+
+        if not leader_email or not member_emails or not email:
             flash("Leader and at least one member email are required.")
             return redirect(url_for("create_team"))
 
-        # Generate unique team_id
+        # Generate unique team_id, password
         team_id = "TEAM" + ''.join(random.choices(string.digits, k=5))
         characters = string.ascii_letters + string.digits
         password = "".join(random.choices(characters, k=7))
@@ -72,17 +90,31 @@ def create_team():
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            "INSERT INTO teams (team_id, leader_email, password) VALUES (%s, %s, %s)",
-            (team_id, leader_email, password)
-        )
-
+        try:
+            cursor.execute("SELECT manager_id FROM team_managers WHERE email = %s", (email,))
+            temp = cursor.fetchone()
+            manager_id = temp[0]
+            cursor.execute(
+            "INSERT INTO teams (team_id, leader_email, password, manager_id) VALUES (%s, %s, %s, %s)",
+            (team_id, leader_email, password, manager_id)
+            )
+            conn.commit()
+        except mysql.connector.IntegrityError:
+            error = "This leader already has a team!"
+            return redirect(url_for('create_team', error=error)) 
+        
         for m_email in member_emails:
             if m_email.strip():
-                cursor.execute(
-                    "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
-                    (team_id, m_email.strip())
-                )
+                cursor.execute("SELECT * FROM teams WHERE leader_email = %s",(m_email,))
+                temp = cursor.fetchall()
+                if temp:
+                    error = f"{m_email} is already a leader try with different member!"
+                    return redirect(url_for('create_team', error=error))
+                else:
+                    cursor.execute(
+                        "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
+                        (team_id, m_email.strip())
+                    )
 
         conn.commit()
         conn.close()
@@ -94,8 +126,9 @@ def create_team():
         send_email(leader_email, subject, body)
 
         return redirect(url_for("managers_dashboard"))
-
-    return render_template("create_team.html")
+    
+    error = request.args.get('error')  # ✅ get error from query string
+    return render_template("create_team.html", error=error)
 
 #manager edit team
 @app.route("/edit_team/<team_id>", methods=["GET", "POST"])
@@ -157,6 +190,7 @@ def leader_login():
         conn.close()
 
         if user:
+            session["leader_email"] = email 
             return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
         else:
             flash("Invalid Leader credentials!", "danger")
@@ -166,6 +200,7 @@ def leader_login():
 #member login
 @app.route("/member/login", methods=["GET", "POST"])
 def member_login():
+    
     if request.method == "POST":
         team_id = request.form["team_id"]
         email = request.form["email"]
@@ -187,9 +222,17 @@ def member_login():
 
 @app.route('/leader')
 def leader_dashboard():
+    if "leader_email" not in session:
+        return redirect(url_for("leader_login"))
+    
+    email = session.get("leader_email")
+
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM tasks ORDER BY due_date ASC")
+    cursor.execute("SELECT leader_email FROM teams where leader_email = %s",(email,))
+    temp = cursor.fetchone()
+    assigned_by = temp[0]
+    cursor.execute("SELECT * FROM tasks WHERE assigned_by = %s ORDER BY due_date ASC",(assigned_by,))
     tasks = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -197,13 +240,16 @@ def leader_dashboard():
 
 @app.route('/member_dashboard')
 def member_dashboard():
+    if "member_email" not in session:
+        return redirect(url_for("member_login"))
+    
     member_email = session.get('member_email')
 
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT title, description, due_date, status
+        SELECT title, description, due_date, status, assigned_by
         FROM tasks
         WHERE email = %s
     """, (member_email,))
@@ -214,6 +260,15 @@ def member_dashboard():
 
     return render_template("member_dashboard.html", tasks=tasks, member_email=member_email)
 
+@app.route("/leader_logout")
+def leader_logout():
+    session.pop("leader_email", None)                # ✅ clear session
+    return redirect(url_for("leader_login"))
+
+@app.route("/member_logout")
+def member_logout():
+    session.pop("member_email", None)                # ✅ clear session
+    return redirect(url_for("member_login"))
 
 @app.route('/add_task', methods=['GET', 'POST'])
 def add_task():
@@ -223,12 +278,14 @@ def add_task():
         due_date = request.form['due_date']
         email = request.form['email']
 
+        assigned_email = session.get("leader_email")
+
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO tasks (title, description, due_date, email, status)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (title, description, due_date, email, 'pending'))
+            INSERT INTO tasks (title, description, due_date, email, status, assigned_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (title, description, due_date, email, 'pending', assigned_email))
         conn.commit()
         cursor.close()
         conn.close()
@@ -253,11 +310,11 @@ def edit_task(task_id):
 
     cursor.execute("SELECT email FROM tasks WHERE id = %s", (task_id,))
     existing_task = cursor.fetchone()
-    email_id = existing_task[0]
     if not existing_task:
         cursor.close()
         conn.close()
         return redirect(url_for('leader_dashboard'))
+    email_id = existing_task[0]
 
     if request.method == 'POST':
         title = request.form['title']
@@ -297,7 +354,7 @@ def edit_task(task_id):
     conn.close()
     return render_template('edit_task.html', task=task)
 
-@app.route('/delete/<int:task_id>')
+@app.route('/delete_task/<int:task_id>')
 def delete_task(task_id):
     conn = get_connection()
     cursor = conn.cursor()

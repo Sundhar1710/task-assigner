@@ -42,9 +42,11 @@ def manager_login():
             return redirect(url_for("managers_dashboard"))
 
         else:
-            return redirect(url_for("manager_login"))
+            error = f"🤦‍♂️ Wrong credientals!"
+            return redirect(url_for("manager_login", error=error))
 
-    return render_template("manager_login.html")
+    error = request.args.get("error")
+    return render_template("manager_login.html", error=error)
 
 #manager dashboard
 @app.route("/managers_dashboard")
@@ -53,6 +55,7 @@ def managers_dashboard():
         return redirect(url_for("manager_login"))
     
     email = session.get("manager_email")
+    sort_by = request.args.get("sort_by")
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -60,7 +63,18 @@ def managers_dashboard():
     temp = cursor.fetchone()
     manager_id = temp[0]
 
-    cursor.execute("SELECT * FROM teams where manager_id = %s ORDER BY created_at DESC",(manager_id,))
+    query = f"SELECT * FROM teams where manager_id = {manager_id}"
+    
+    if sort_by == "email_a":
+        query += " ORDER BY leader_email ASC"
+    elif sort_by == "date_new":
+        query += " ORDER BY created_at DESC"
+    elif sort_by == "date_old":
+        query += " ORDER BY created_at ASC"
+    elif sort_by == "email_z":
+        query += " ORDER BY leader_email DESC"
+    
+    cursor.execute(query)
     teams = cursor.fetchall()
     conn.close()
 
@@ -222,9 +236,11 @@ def leader_login():
             session["leader_email"] = email 
             return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
         else:
-            flash("Invalid Leader credentials!", "danger")
-
-    return render_template("leader_login.html")
+            error = f"🤦‍♂️ Wrong credientals!"
+            return redirect(url_for("leader_login", error=error))
+        
+    error = request.args.get('error')
+    return render_template("leader_login.html", error=error)
 
 #member login
 @app.route("/member/login", methods=["GET", "POST"])
@@ -254,17 +270,28 @@ def leader_dashboard():
     if "leader_email" not in session:
         return redirect(url_for("leader_login"))
     
-    email = session.get("leader_email")
+    assigned_by = session.get("leader_email")
+    sort_by = request.args.get("sort_by")
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT leader_email FROM teams where leader_email = %s",(email,))
-    temp = cursor.fetchone()
-    assigned_by = temp[0]
-    cursor.execute("SELECT * FROM tasks WHERE assigned_by = %s ORDER BY due_date ASC",(assigned_by,))
+
+    query = f"SELECT * FROM tasks WHERE assigned_by = '{assigned_by}'"
+
+    if sort_by == "pending":
+        query += " AND status = 'pending'"
+    elif sort_by == "completed":
+        query += " AND status = 'complete'"
+    elif sort_by == "new":
+        query += " ORDER BY created_at DESC"
+    elif sort_by == "old":
+        query += " ORDER BY created_at ASC"
+    
+    cursor.execute(query)
     tasks = cursor.fetchall()
     cursor.close()
     conn.close()
+
     return render_template('leader_dashboard.html', tasks=tasks)
 
 @app.route('/member_dashboard')

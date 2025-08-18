@@ -13,9 +13,23 @@
         <div class="alert alert-success" role="alert"> {{ success }}</div>
     {% endif %}
     <h2>Welcome, {{ session.manager_email }}</h2>
+<!-- Create + Logout buttons in one row -->
+<div class="top-bar">
     <a href="{{ url_for('create_team') }}">+ Create New Team</a>
-    <br><br>
-    <a class="logout" href="{{ url_for('manager_logout') }}">Logout</a>
+    <a class="logout" href="{{ url_for('manager_logout') }}">🔒 Logout</a>
+</div>
+
+<!-- Sorting Form below Create Team -->
+<form method="get" action="{{ url_for('managers_dashboard') }}" class="sort-form">
+    <label for="sort_by"><b>Sort By:</b></label>
+    <select name="sort_by" id="sort_by" onchange="this.form.submit()">
+        <option value="">-- Select --</option>
+        <option value="email_a" {% if request.args.get('sort_by') == 'email_a' %}selected{% endif %}>Leader Email (A-Z)</option>
+        <option value="date_new" {% if request.args.get('sort_by') == 'date_new' %}selected{% endif %}>Date Created (Newest First)</option>
+        <option value="date_old" {% if request.args.get('sort_by') == 'date_old' %}selected{% endif %}>Date Created (Oldest First)</option>
+        <option value="email_z" {% if request.args.get('sort_by') == 'email_z' %}selected{% endif %}>Leader Email (Z-A)</option>
+    </select>
+</form>
 
     <table border="1" cellpadding="5">
         <tr>

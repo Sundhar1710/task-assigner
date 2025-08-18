@@ -64,7 +64,11 @@ def managers_dashboard():
     teams = cursor.fetchall()
     conn.close()
 
-    return render_template("manager_dashboard.html", teams=teams)
+    # ✅ get success/error from query params
+    success = request.args.get("success")
+    error = request.args.get("error")
+
+    return render_template("manager_dashboard.html", teams=teams, success=success, error=error)
 
 #manager create team
 @app.route("/create_team", methods=["GET", "POST"])
@@ -79,7 +83,6 @@ def create_team():
         email = session.get('manager_email')
 
         if not leader_email or not member_emails or not email:
-            flash("Leader and at least one member email are required.")
             return redirect(url_for("create_team"))
 
         # Generate unique team_id, password
@@ -106,9 +109,9 @@ def create_team():
         for m_email in member_emails:
             if m_email.strip():
                 cursor.execute("SELECT * FROM teams WHERE leader_email = %s",(m_email,))
-                temp = cursor.fetchall()
+                temp = cursor.fetchone()
                 if temp:
-                    error = f"{m_email} is already a leader try with different member!"
+                    error = f"⚠️ {m_email} is already a leader try with different member!"
                     return redirect(url_for('create_team', error=error))
                 else:
                     cursor.execute(
@@ -125,7 +128,7 @@ def create_team():
         \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
         send_email(leader_email, subject, body)
 
-        return redirect(url_for("managers_dashboard"))
+        return redirect(url_for("managers_dashboard", success = f"👍 Team Created Successfully & Mail Send to Leader {leader_email}"))
     
     error = request.args.get('error')  # ✅ get error from query string
     return render_template("create_team.html", error=error)
@@ -150,23 +153,26 @@ def edit_team(team_id):
         leader_email = request.form["leader_email"]
         member_emails = request.form.getlist("member_email")
 
-        # Update leader email
-        cursor.execute("UPDATE teams SET leader_email = %s WHERE team_id = %s", (leader_email, team_id))
+        try:
+            # Update leader email
+            cursor.execute("UPDATE teams SET leader_email = %s WHERE team_id = %s", (leader_email, team_id))
 
-        # Remove old members and insert new ones
-        cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
-        for m_email in member_emails:
-            if m_email.strip():
-                cursor.execute(
-                    "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
-                    (team_id, m_email.strip())
-                )
+            # Remove old members and insert new ones
+            cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
+            for m_email in member_emails:
+                if m_email.strip():
+                    cursor.execute(
+                        "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
+                        (team_id, m_email.strip())
+                    )
+            conn.commit()
+            conn.close()
+            return redirect(url_for("managers_dashboard", success="👍 Team successfully edited!"))
 
-        conn.commit()
-        conn.close()
-
-        flash("Team updated successfully!", "success")
-        return redirect(url_for("managers_dashboard"))
+        except mysql.connector.InterfaceError:
+            conn.rollback()
+            conn.close()
+            return redirect(url_for("managers_dashboard", error="⚠️ Something went wrong while editing!"))
 
     conn.close()
     return render_template("edit_team.html", team=team, members=members)
@@ -179,16 +185,20 @@ def delete_team(team_id):
     
     conn = get_connection()
     cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM tasks WHERE team_id = %s", (team_id,))
-    cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
-
-    cursor.execute("DELETE FROM teams WHERE team_id = %s", (team_id,))
-
+    
+    try:
+        cursor.execute("DELETE FROM tasks WHERE team_id = %s", (team_id,))
+        cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
+        cursor.execute("DELETE FROM teams WHERE team_id = %s", (team_id,))
+    except Exception:
+        conn.rollback()
+        conn.close()
+        return redirect(url_for("managers_dashboard", error="🙄 Something went wrong while Deleting the Team Try again!"))
+    
     conn.commit()
-    conn.close()
+    conn.close()    
 
-    return redirect(url_for("managers_dashboard"))
+    return redirect(url_for("managers_dashboard", success=f"⚰️ Team Deleted Successfully!"))
 
 @app.route("/manager_logout")
 def manager_logout():

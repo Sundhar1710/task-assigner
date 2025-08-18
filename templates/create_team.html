@@ -9,7 +9,9 @@
     {% if error %}
         <div class="alert alert-danger" role="alert">⚠️ {{ error }}</div>
     {% endif %}
-
+    {% if success %}
+        <div class="alert alert-success" role="alert">👍<b>{{ success }}</div>
+    {% endif %}
     <h2>Create New Team</h2>
     <form method="POST">
         <label>Leader Email:</label><br>
@@ -33,7 +35,7 @@
         div.appendChild(document.createElement("br"));
         div.appendChild(input);
     }
-    setTimeout(() => {document.querySelector('.alert').remove();}, 2000);
+    setTimeout(() => {document.querySelector('.alert').remove();}, 3000);
     </script>
 </body>
 </html>

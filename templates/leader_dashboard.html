@@ -17,8 +17,8 @@
                 <option value="">-- Select --</option>
                 <option value="pending" {% if request.args.get('sort_by') == 'pending' %}selected{% endif %}>Status Pending</option>
                 <option value="completed" {% if request.args.get('sort_by') == 'completed' %}selected{% endif %}>Status Completed</option>
-                <option value="old" {% if request.args.get('sort_by') == 'old' %}selected{% endif %}>Date Created (Oldest First)</option>
-                <option value="new" {% if request.args.get('sort_by') == 'new' %}selected{% endif %}>Date Created (Newest First)</option>
+                <option value="old" {% if request.args.get('sort_by') == 'old' %}selected{% endif %}>Date Created (Near First)</option>
+                <option value="new" {% if request.args.get('sort_by') == 'new' %}selected{% endif %}>Date Created (Long First)</option>
             </select>
         </form>
 

@@ -5,7 +5,7 @@ import mysql.connector
 import random, string
 from generate_password import generate_password
 import os, secrets
-from datetime import datetime
+from datetime import datetime, date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))  # Needed for sessions
@@ -116,8 +116,7 @@ def create_team():
             "INSERT INTO teams (team_id, leader_email, password, manager_id) VALUES (%s, %s, %s, %s)",
             (team_id, leader_email, leader_password, manager_id)
             )
-            conn.commit()
-
+            
             # Send email to team leader
             subject = "✅ Assigned as a Team Leader"
             body = f"Hello,\n\nYour team has been created successfully. \
@@ -135,11 +134,17 @@ def create_team():
                 temp = cursor.fetchone()
                 if temp:
                     error = f"⚠️ {m_email} is a leader, try with different member!"
+                    conn.rollback()
                     return redirect(url_for('create_team', error=error))
                 else:
-                    cursor.execute("SELECT member_email FROM team_members WHERE member_email = %s", (m_email,))
-                    member_exist = cursor.fetchall()
+                    cursor.execute("SELECT password FROM team_members WHERE member_email = %s", (m_email,))
+                    member_exist = cursor.fetchone()
                     if member_exist:
+                        exist_password = member_exist[0]
+                        cursor.execute(
+                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                            (team_id, m_email.strip(), exist_password)
+                        )
                         # Send email to team members
                         subject = "✅ Assigned to New Team"
                         body = f"Hello,\n\nYou are assigned to a new team {team_id}. Please use your existing password to login.. \
@@ -282,31 +287,6 @@ def leader_login():
     error = request.args.get('error')
     return render_template("leader_login.html", error=error)
 
-#member login
-@app.route("/member/login", methods=["GET", "POST"])
-def member_login():
-    
-    if request.method == "POST":
-        team_id = request.form["team_id"]
-        email = request.form["email"]
-        
-        conn = get_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM team_members WHERE team_id=%s AND member_email=%s", (team_id, email))
-            user = cursor.fetchone()
-        conn.close()
-
-        if user:
-            session["member_email"] = email
-            return redirect(url_for("member_dashboard")) 
-        else:
-            error = f"🙅‍♂️ Not registered as Member to Any Team!"
-            return redirect(url_for('member_login', error=error))
-        
-    error = request.args.get('error')
-    return render_template("member_login.html", error=error)
-
-
 @app.route('/leader')
 def leader_dashboard():
     if "leader_email" not in session:
@@ -335,6 +315,35 @@ def leader_dashboard():
     conn.close()
 
     return render_template('leader_dashboard.html', tasks=tasks)
+
+@app.route("/leader_logout")
+def leader_logout():
+    session.pop("leader_email", None)                # ✅ clear session
+    return redirect(url_for("leader_login"))
+
+#member login
+@app.route("/member/login", methods=["GET", "POST"])
+def member_login():
+    
+    if request.method == "POST":
+        password = request.form["password"]
+        email = request.form["email"]
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM team_members WHERE password=%s AND member_email=%s", (password, email))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            session["member_email"] = email
+            return redirect(url_for("member_dashboard")) 
+        else:
+            error = f"🙅‍♂️ Not registered as Member to Any Team!"
+            return redirect(url_for('member_login', error=error))
+        
+    error = request.args.get('error')
+    return render_template("member_login.html", error=error)
 
 @app.route('/member_dashboard')
 def member_dashboard():
@@ -365,11 +374,6 @@ def member_dashboard():
 
     return render_template("member_dashboard.html", tasks=tasks, member_email=member_email)
 
-@app.route("/leader_logout")
-def leader_logout():
-    session.pop("leader_email", None)                # ✅ clear session
-    return redirect(url_for("leader_login"))
-
 @app.route("/member_logout")
 def member_logout():
     session.pop("member_email", None)                # ✅ clear session
@@ -377,39 +381,78 @@ def member_logout():
 
 @app.route('/add_task', methods=['GET', 'POST'])
 def add_task():
+    if "leader_email" not in session:
+        return redirect(url_for("leader_login"))
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # get leader’s team_id
+    assigned_email = session.get("leader_email")
+    cursor.execute("SELECT team_id FROM teams WHERE leader_email = %s", (assigned_email,))
+    temp = cursor.fetchone()
+    if not temp:
+        conn.close()
+        return redirect(url_for("leader_dashboard", error="⚠️ You don’t belong to any team!"))
+
+    team_id = temp[0]
+
+    # fetch team members
+    cursor.execute("SELECT member_email FROM team_members WHERE team_id = %s", (team_id,))
+    team_members = [row[0] for row in cursor.fetchall()]  # extract emails
+
     if request.method == 'POST':
         title = request.form['title']
         description = request.form['description']
         due_date = request.form['due_date']
-        email = request.form['email']
+        selected_emails = request.form.getlist("emails")  # list of selected members
 
-        assigned_email = session.get("leader_email")
+        try:
+            # Convert string to date
+            due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
+        except ValueError:
+            error = "Invalid date format. Please use MM-DD-YYYY."
+            return redirect(url_for("add_task", error=error))
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT team_id FROM teams WHERE leader_email = %s",(assigned_email,))
-        temp = cursor.fetchone()
-        team_id = temp[0]
-        cursor.execute("""
-            INSERT INTO tasks (title, description, due_date, email, status, 
-            assigned_by, team_id) VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (title, description, due_date, email, 'pending', assigned_email, team_id))
-        conn.commit()
-        cursor.close()
+        # Validate that the date is not in the past
+        if due_date < date.today():
+            error = "Due date cannot be in the past."
+            return redirect(url_for("add_task",error=error))
+    
+        if not selected_emails:
+            conn.close()
+            return redirect(url_for("add_task", error="⚠️ Please select at least one member!"))
+
+        try:
+            for m_email in selected_emails:
+                cursor.execute("""
+                    INSERT INTO tasks (title, description, due_date, email, status, 
+                    assigned_by, team_id) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (title, description, due_date, m_email, 'pending', assigned_email, team_id))
+
+                # send email for each member
+                subject = "📝 New Task Assigned"
+                body = f"Hello,\n\nA new task has been assigned to you:\n\n" \
+                       f"📌 Title: {title}\n" \
+                       f"📝 Description: {description or 'No Description'}\n" \
+                       f"📅 Due Date: {due_date}\n\n" \
+                       f"This is a system generated mail so don't reply\n\n" \
+                       f"Thanks,\nTask Assigner System"
+                send_email(m_email, subject, body)
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            print("Error adding task:", e)
+            return redirect(url_for("leader_dashboard", error="⚠️ Failed to add task."))
+
         conn.close()
+        return redirect(url_for('leader_dashboard', success="✅ Task(s) assigned successfully!"))
 
-        subject = "📝 New Task Assigned"
-        body = f"Hello,\n\nA new task has been assigned to you:\n\n" \
-               f"📌 Title: {title}\n" \
-               f"📝 Description: {description or 'No Description'}\n" \
-               f"📅 Due Date: {due_date}\n\n" \
-               f"This is a system generated mail so don't reply\n\n"\
-               f"Thanks,\nTask Assigner System"
-        send_email(email, subject, body)
-
-        return redirect(url_for('leader_dashboard'))
-
-    return render_template('add_task.html')
+    conn.close()
+    error = request.args.get('error')
+    return render_template('add_task.html', team_members=team_members, error=error)
 
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 def edit_task(task_id):
@@ -429,6 +472,18 @@ def edit_task(task_id):
         description = request.form['description']
         due_date = request.form['due_date']
         status = request.form['status']
+
+        try:
+            # Convert string to date
+            due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
+        except ValueError:
+            error = "Invalid date format. Please use MM-DD-YYYY."
+            return redirect(url_for("edit_task", error=error))
+
+        # Validate that the date is not in the past
+        if due_date < date.today():
+            error = "Due date cannot be in the past."
+            return redirect(url_for("edit_task",error=error))
 
         cursor.execute("""
             UPDATE tasks

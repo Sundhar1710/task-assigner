@@ -45,7 +45,7 @@ h1 {
     margin-bottom: 20px;
 }
 
-input[type="text"],
+input[type="password"],
 input[type="email"] {
     width: 90%;
     padding: 10px;
@@ -91,7 +91,7 @@ a:hover {
         padding: 20px;
     }
 
-    input[type="text"],
+    input[type="password"],
     input[type="email"] {
         width: 100%;
     }

@@ -13,6 +13,16 @@
     <a href="{{ url_for('member_logout') }}" class="logout-btn">🔒 Logout</a>
     </div>
 
+    <form method="get" action="{{ url_for('member_dashboard') }}" class="sort-form">
+            <label for="sort_by"><b>Sort By:</b></label>
+            <select name="sort_by" id="sort_by" onchange="this.form.submit()">
+                <option value="">-- Select --</option>
+                <option value="pending" {% if request.args.get('sort_by') == 'pending' %}selected{% endif %}>Status Pending</option>
+                <option value="completed" {% if request.args.get('sort_by') == 'completed' %}selected{% endif %}>Status Completed</option>
+                <option value="old" {% if request.args.get('sort_by') == 'old' %}selected{% endif %}>Due Date (Oldest First)</option>
+                <option value="new" {% if request.args.get('sort_by') == 'new' %}selected{% endif %}>Due Date (Newest First)</option>
+            </select>
+    </form>
     <table>
         <tr>
             <th>Title</th>

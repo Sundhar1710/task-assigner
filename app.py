@@ -3,6 +3,7 @@ from db_config import get_connection
 from email_remainder import send_email
 import mysql.connector
 import random, string
+from generate_password import generate_password
 import os, secrets
 from datetime import datetime
 
@@ -101,8 +102,7 @@ def create_team():
 
         # Generate unique team_id, password
         team_id = "TEAM" + ''.join(random.choices(string.digits, k=5))
-        characters = string.ascii_letters + string.digits
-        password = "".join(random.choices(characters, k=7))
+        leader_password = generate_password()
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -111,12 +111,21 @@ def create_team():
             cursor.execute("SELECT manager_id FROM team_managers WHERE email = %s", (email,))
             temp = cursor.fetchone()
             manager_id = temp[0]
+
             cursor.execute(
             "INSERT INTO teams (team_id, leader_email, password, manager_id) VALUES (%s, %s, %s, %s)",
-            (team_id, leader_email, password, manager_id)
+            (team_id, leader_email, leader_password, manager_id)
             )
             conn.commit()
+
+            # Send email to team leader
+            subject = "✅ Assigned as a Team Leader"
+            body = f"Hello,\n\nYour team has been created successfully. \
+            \nTeam ID: {team_id}\nPassword: {leader_password}\n Don't share password with anyone\n\nThanks."
+            send_email(leader_email, subject, body)
+
         except mysql.connector.IntegrityError:
+            #leder_email is unique in database so if we try with same email this except will happen
             error = "This leader already has a team!"
             return redirect(url_for('create_team', error=error)) 
         
@@ -125,24 +134,33 @@ def create_team():
                 cursor.execute("SELECT * FROM teams WHERE leader_email = %s",(m_email,))
                 temp = cursor.fetchone()
                 if temp:
-                    error = f"⚠️ {m_email} is already a leader try with different member!"
+                    error = f"⚠️ {m_email} is a leader, try with different member!"
                     return redirect(url_for('create_team', error=error))
                 else:
-                    cursor.execute(
-                        "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
-                        (team_id, m_email.strip())
-                    )
+                    cursor.execute("SELECT member_email FROM team_members WHERE member_email = %s", (m_email,))
+                    member_exist = cursor.fetchall()
+                    if member_exist:
+                        # Send email to team members
+                        subject = "✅ Assigned to New Team"
+                        body = f"Hello,\n\nYou are assigned to a new team {team_id}. Please use your existing password to login.. \
+                        \nTeam ID: {team_id}\nPassword: USE EXIST PASSWORD WHICH PREVIOUSLY USED FOR LOGIN AS MEMBER.\n \
+                        Don't share password with anyone\n\nThanks."
+                        send_email(m_email, subject, body)
+                    else:
+                        password = generate_password()
+                        cursor.execute(
+                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                            (team_id, m_email.strip(), password)
+                        )
+                        subject = "✅ Assigned to New Team"
+                        body = f"Hello,\n\nYou are assigned to team {team_id}. For further details mail to {email} (your leader E-mail) \
+                        \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
+                        send_email(m_email, subject, body)
 
         conn.commit()
         conn.close()
 
-        # Send email to team leader
-        subject = "✅ Your New Team ID"
-        body = f"Hello,\n\nYour team has been created successfully. \
-        \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
-        send_email(leader_email, subject, body)
-
-        return redirect(url_for("managers_dashboard", success = f"👍 Team Created Successfully & Mail Send to Leader {leader_email}"))
+        return redirect(url_for("managers_dashboard", success = f"👍 Team Created Successfully & Mail Send to Leader & Members"))
     
     error = request.args.get('error')  # ✅ get error from query string
     return render_template("create_team.html", error=error)
@@ -154,31 +172,53 @@ def edit_team(team_id):
         return redirect(url_for("manager_login"))
 
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     # Fetch existing team and members
-    cursor.execute("SELECT * FROM teams WHERE team_id = %s", (team_id,))
+    cursor.execute("SELECT leader_email FROM teams WHERE team_id = %s", (team_id,))
     team = cursor.fetchone()
 
     cursor.execute("SELECT member_email FROM team_members WHERE team_id = %s", (team_id,))
-    members = cursor.fetchall()
+    members = [row[0] for row in cursor.fetchall()]  # extract just the email string
 
     if request.method == "POST":
         leader_email = request.form["leader_email"]
         member_emails = request.form.getlist("member_email")
 
         try:
-            # Update leader email
-            cursor.execute("UPDATE teams SET leader_email = %s WHERE team_id = %s", (leader_email, team_id))
+            if leader_email != team[0]:
+                # Update leader email
+                password = generate_password()
+                cursor.execute("UPDATE teams SET leader_email = %s, password = %s WHERE team_id = %s", (leader_email, password, team_id,))
+    
+                # Send email to team leader
+                subject = "✅ Assigned as a New Team Leader to Exist Team"
+                body = f"Hello,\n\nYour where assigned as a new Leader for {team_id}. \
+                \nTeam ID: {team_id}\nPassword: {password}\n \
+                Login with those credentials to modify or assign task to team members\n \
+                Don't share password with anyone\n\nThanks."
+                send_email(leader_email, subject, body)
 
-            # Remove old members and insert new ones
-            cursor.execute("DELETE FROM team_members WHERE team_id = %s", (team_id,))
-            for m_email in member_emails:
-                if m_email.strip():
+            to_delete = set(members) - set(member_emails) #members -> old team members
+            to_add = set(member_emails) - set(members)    #member_emails -> new team members
+
+            #delete old members
+            if to_delete:
+                for m_email in to_delete:
+                    cursor.execute("DELETE FROM team_members WHERE team_id = %s AND member_email = %s", (team_id, m_email))
+
+            # add new one and send mail
+            if to_add:
+                for m_email in to_add:
+                    password = generate_password()
                     cursor.execute(
-                        "INSERT INTO team_members (team_id, member_email) VALUES (%s, %s)",
-                        (team_id, m_email.strip())
+                        "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                        (team_id, m_email, password,)
                     )
+                    subject = "✅ Assigned as a Team Member to Exist Team"
+                    body = f"Hello,\n\nYour where assigned as a Member for {team_id}. \
+                    \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
+                    send_email(m_email, subject, body)
             conn.commit()
             conn.close()
             return redirect(url_for("managers_dashboard", success="👍 Team successfully edited!"))
@@ -258,11 +298,13 @@ def member_login():
 
         if user:
             session["member_email"] = email
-            return redirect(url_for("member_dashboard"))  # change to member dashboard later
+            return redirect(url_for("member_dashboard")) 
         else:
-            flash("Invalid Member credentials!", "danger")
-
-    return render_template("member_login.html")
+            error = f"🙅‍♂️ Not registered as Member to Any Team!"
+            return redirect(url_for('member_login', error=error))
+        
+    error = request.args.get('error')
+    return render_template("member_login.html", error=error)
 
 
 @app.route('/leader')
@@ -300,16 +342,23 @@ def member_dashboard():
         return redirect(url_for("member_login"))
     
     member_email = session.get('member_email')
+    sort_by = request.args.get("sort_by")
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT title, description, due_date, status, assigned_by
-        FROM tasks
-        WHERE email = %s
-    """, (member_email,))
+    query = f"SELECT title, description, due_date, status, assigned_by FROM tasks WHERE email = '{member_email}'"
 
+    if sort_by == "pending":
+        query += " AND status = 'pending'"
+    elif sort_by == "completed":
+        query += " AND status = 'complete'"
+    elif sort_by == "new":
+        query += " ORDER BY due_date DESC"
+    elif sort_by == "old":
+        query += " ORDER BY due_date ASC"
+
+    cursor.execute(query)
     tasks = cursor.fetchall()
     cursor.close()
     conn.close()

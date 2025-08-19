@@ -26,16 +26,21 @@
         <input type="submit" value="Create Team">
     </form>
     <script>
-    function addMemberField() {
-        let div = document.getElementById("memberFields");
-        let input = document.createElement("input");
-        input.type = "email";
-        input.name = "member_email";
-        input.placeholder = "Member Email";
-        div.appendChild(document.createElement("br"));
-        div.appendChild(input);
-    }
-    setTimeout(() => {document.querySelector('.alert').remove();}, 3000);
+        window.addEventListener("pageshow", function (event) {
+            if (event.persisted || (window.performance && window.performance.getEntriesByType("navigation")[0].type === "back_forward")) {
+                window.location.reload();
+            }
+        });
+        function addMemberField() {
+            let div = document.getElementById("memberFields");
+            let input = document.createElement("input");
+            input.type = "email";
+            input.name = "member_email";
+            input.placeholder = "Member Email";
+            div.appendChild(document.createElement("br"));
+            div.appendChild(input);
+        }
+        setTimeout(() => {document.querySelector('.alert').remove();}, 3000);
     </script>
 </body>
 </html>

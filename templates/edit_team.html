@@ -5,17 +5,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='edit_team.css') }}">
 </head>
 <body>
-    <h2>Edit Team: {{ team.team_id }}</h2>
+    <h2>Edit Team: {{ team[0] }}</h2>
 
     <form method="POST">
         <label>Leader Email:</label>
-        <input type="email" name="leader_email" value="{{ team.leader_email }}" required>
+        <input type="email" name="leader_email" value="{{ team[0] }}" required>
 
         <div id="memberFields">
             <label>Members Email:</label>
             {% for m in members %}
                 <div>
-                    <input type="email" name="member_email" value="{{ m.member_email }}" placeholder="Member Email" required>
+                    <input type="email" name="member_email" value="{{ m }}" placeholder="Member Email" required>
                     <button type="button" class="delete-btn" onclick="this.parentElement.remove()">X</button>
                 </div>
             {% endfor %}

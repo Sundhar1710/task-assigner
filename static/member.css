@@ -6,6 +6,29 @@ body {
     margin: 0;
 }
 
+/* Sort form styling */
+.sort-form {
+    margin-bottom: 20px;
+}
+
+.sort-form label {
+    margin-right: 8px;
+}
+
+.sort-form select {
+    padding: 6px 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.sort-form select:hover {
+    border-color: #007bff;
+}
+
+
 h2, h3 {
     text-align: center;
     color: #34495e;

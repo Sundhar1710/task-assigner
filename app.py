@@ -60,12 +60,11 @@ def managers_dashboard():
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT manager_id FROM team_managers where email = %s",(email,))
-    temp = cursor.fetchone()
-    manager_id = temp[0]
+    cursor.execute("SELECT manager_id FROM team_managers WHERE email = %s", (email,))
+    manager_id = cursor.fetchone()[0]
 
-    query = f"SELECT * FROM teams where manager_id = {manager_id}"
-    
+    query = f"SELECT * FROM teams WHERE manager_id = '{manager_id}'"
+
     if sort_by == "email_a":
         query += " ORDER BY leader_email ASC"
     elif sort_by == "date_new":
@@ -74,8 +73,10 @@ def managers_dashboard():
         query += " ORDER BY created_at ASC"
     elif sort_by == "email_z":
         query += " ORDER BY leader_email DESC"
-    
+
     cursor.execute(query)
+
+
     teams = cursor.fetchall()
     conn.close()
 
@@ -275,10 +276,12 @@ def leader_login():
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM teams WHERE leader_email=%s AND password=%s", (email, password))
             user = cursor.fetchone()
+            team_id = user[1]
         conn.close()
 
         if user:
-            session["leader_email"] = email 
+            session["leader_email"] = email
+            session["team_id"] = team_id
             return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
         else:
             error = f"🤦‍♂️ Wrong credientals!"
@@ -314,7 +317,8 @@ def leader_dashboard():
     cursor.close()
     conn.close()
 
-    return render_template('leader_dashboard.html', tasks=tasks)
+    error = request.args.get('error')
+    return render_template('leader_dashboard.html', tasks=tasks, error=error)
 
 @app.route("/leader_logout")
 def leader_logout():
@@ -328,15 +332,17 @@ def member_login():
     if request.method == "POST":
         password = request.form["password"]
         email = request.form["email"]
+        team_id = request.form["team_id"]
         
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM team_members WHERE password=%s AND member_email=%s", (password, email))
+        cursor.execute("SELECT * FROM team_members WHERE password=%s AND member_email=%s AND team_id=%s", (password, email, team_id))
         user = cursor.fetchone()
         conn.close()
 
         if user:
             session["member_email"] = email
+            session["team_id"] = team_id
             return redirect(url_for("member_dashboard")) 
         else:
             error = f"🙅‍♂️ Not registered as Member to Any Team!"
@@ -347,16 +353,17 @@ def member_login():
 
 @app.route('/member_dashboard')
 def member_dashboard():
-    if "member_email" not in session:
+    if "member_email" not in session or "team_id" not in session:
         return redirect(url_for("member_login"))
     
     member_email = session.get('member_email')
+    team_id = session.get('team_id')
     sort_by = request.args.get("sort_by")
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    query = f"SELECT title, description, due_date, status, assigned_by FROM tasks WHERE email = '{member_email}'"
+    query = f"SELECT title, description, due_date, status, assigned_by FROM tasks WHERE email = '{member_email}' and team_id = '{team_id}'"
 
     if sort_by == "pending":
         query += " AND status = 'pending'"
@@ -543,6 +550,85 @@ def complete_task():
     conn.close()
 
     return redirect(url_for('member_dashboard', member_email=email))
+
+#manager_analysis
+@app.route("/analysis/<team_id>")
+def analysis(team_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # ---- keep your existing queries exactly as-is ----
+    # Total tasks for this team
+    cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE team_id = %s", (team_id,))
+    total_tasks = cursor.fetchone()[0]
+
+    # Pending tasks for this team
+    cursor.execute("SELECT COUNT(*) AS pending FROM tasks WHERE status='pending' AND team_id = %s", (team_id,))
+    pending_tasks = cursor.fetchone()[0]
+    # --------------------------------------------------
+
+    # Team leader email (leader_email is stored in teams)
+    cursor.execute("SELECT leader_email FROM teams WHERE team_id = %s", (team_id,))
+    row = cursor.fetchone()
+    leader_email = row[0] if row else "N/A"
+
+    # Number of members in this team
+    cursor.execute("SELECT COUNT(*) FROM team_members WHERE team_id = %s", (team_id,))
+    member_count = cursor.fetchone()[0]
+
+    # Members list + number of tasks assigned to each member
+    # NOTE: Based on your original schema, tasks.email is the assignee (the member),
+    # and tasks.assigned_by is the person who assigned it (likely the leader).
+    cursor.execute("""
+        SELECT tm.member_email, COUNT(t.id) AS task_count
+        FROM team_members tm
+        LEFT JOIN tasks t
+               ON t.team_id = tm.team_id
+              AND t.email = tm.member_email
+        WHERE tm.team_id = %s
+        GROUP BY tm.member_email
+    """, (team_id,))
+    member_rows = cursor.fetchall()
+
+    # Convert tuples -> dicts so Jinja can use m.member_email / m.task_count
+    members = [{"member_email": r[0], "task_count": int(r[1] or 0)} for r in member_rows]
+
+    conn.close()
+
+    return render_template(
+        "analysis.html",
+        team_id=team_id,
+        total=total_tasks,
+        pending=pending_tasks,
+        leader_email=leader_email,   # used by your leader card
+        member_count=member_count,   # used by your leader card
+        members=members              # used by your members grid
+    )
+
+#leader_analysis
+@app.route('/leader_analysis')
+def leader_analysis():
+    if "team_id" not in session:
+        error = f"something went wrong while fetching the team details"
+        return redirect(url_for("leader_dashboard",error=error))
+    
+    team_id = session.get('team_id')
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""SELECT tm.member_email,COUNT(t.id) AS total_tasks,
+    SUM(CASE WHEN t.status = 'complete' THEN 1 ELSE 0 END) AS completed_tasks,
+    SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) AS pending_tasks
+    FROM team_members tm LEFT JOIN tasks t 
+    ON tm.member_email = t.email AND tm.team_id = t.team_id
+    WHERE tm.team_id = %s   -- pass your team_id here
+    GROUP BY tm.member_email;
+    """,(team_id,))
+    data = cursor.fetchall()
+    cursor.close()
+   
+    return render_template('teamdetails.html', team=data)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

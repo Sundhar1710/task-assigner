@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Team Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='teamdetails.css') }}">
+</head>
+<body>
+    <h1>👥 Team Details</h1>
+    <table border="1" cellpadding="10">
+        <tr>
+            <th>Email</th>
+            <th>Total Tasks</th>
+            <th>Completed</th>
+            <th>Pending</th>
+        </tr>
+        {% for row in team %}
+        <tr>
+            <td>{{ row[0] }}</td>
+            <td>{{ row[1] }}</td>
+            <td>{{ row[2] }}</td>
+            <td>{{ row[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

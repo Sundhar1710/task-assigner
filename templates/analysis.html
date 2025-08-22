@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{url_for('static', filename='analysis.css')}}">
+
+    <style>
+        
+    </style>
+</head>
+<body>
+    <h1>📊 <b>{{ team_id }} Details</b></h1>
+
+    <!-- Chart -->
+    <div class="chart-container">
+        <canvas id="taskChart"></canvas>
+        <div class="chart-center">
+            {{ pending }}/{{ total }}<br>
+            <span class="chart-subtext">Pending / Total</span>
+        </div>
+    </div>
+
+    <!-- Team Leader -->
+    {% if leader_email %}
+    <div class="leader-card">
+        <h3>👑Team Leader</h3>
+        <b><p>{{ leader_email }}</p></b>
+    </div>
+    {% endif %}
+
+    <!-- Team Members -->
+    {% if members %}
+    <h2 style="text-align:center;">👥 Team Members</h2>
+    <div class="members-grid">
+        {% for m in members %}
+        <div class="member-card">
+            <img src="https://ui-avatars.com/api/?name={{ m.member_email }}&background=random" alt="avatar">
+            <p><b>{{ m.member_email }}</b></p>
+            <p><b>Total Task: {{ m.task_count }}</b></p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Chart Script -->
+    <script>
+        const totalTasks = {{ total }};
+        const pendingTasks = {{ pending }};
+        const completedTasks = totalTasks - pendingTasks;
+
+        const ctx = document.getElementById('taskChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pending', 'Completed'],
+                datasets: [{
+                    data: [pendingTasks, completedTasks],
+                    backgroundColor: ['#e74c3c', '#2ecc71'],
+                }]
+            },
+            options: {
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

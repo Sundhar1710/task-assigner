@@ -1,0 +1,67 @@
+/* General Page Styling */
+body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: #f4f7fb;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+/* Heading Styling */
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+    font-size: 2.2rem;
+}
+
+/* Table Styling */
+table {
+    width: 80%;
+    margin: 0 auto;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Table Header */
+th {
+    background: #2c3e50;
+    color: #fff;
+    padding: 14px 18px;
+    font-size: 1rem;
+    text-align: center;
+}
+
+/* Table Rows */
+td {
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 0.95rem;
+    border-bottom: 1px solid #eee;
+}
+
+/* Alternate Row Color */
+tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+/* Hover Effect */
+tr:hover {
+    background: #eef6ff;
+    transition: background 0.3s ease-in-out;
+}
+
+/* Make Table Responsive */
+@media (max-width: 768px) {
+    table {
+        width: 100%;
+    }
+
+    th, td {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+}

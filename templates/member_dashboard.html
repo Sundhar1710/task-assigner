@@ -23,36 +23,49 @@
                 <option value="new" {% if request.args.get('sort_by') == 'new' %}selected{% endif %}>Due Date (Newest First)</option>
             </select>
     </form>
-    <table>
-        <tr>
-            <th>Title</th>
-            <th>Description</th>
-            <th>Due Date</th>
-            <th>Status</th>
-            <th>Assigned By</th>
-            <th>Action</th>
-        </tr>
-        {% for task in tasks %}
-        <tr>
-            <td>{{ task[0] }}</td>
-            <td>{{ task[1] }}</td>
-            <td>{{ task[2] }}</td>
-            <td>{{ task[3] }}</td>
-            <td>{{ task[4] }}</td>
-            <td>
-                {% if task[3] != 'complete' %}
-                    <form action="{{ url_for('complete_task') }}" method="POST">
-                        <input type="hidden" name="title" value="{{ task[0] }}">
-                        <input type="hidden" name="email" value="{{ member_email }}">
-                        <button class="btn" type="submit">Mark Complete</button>
-                    </form>
-                {% else %}
-                    <button class="btn" disabled>✅ Completed</button>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+    {% if tasks and tasks|length > 0 %}
+        <table>
+            <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Assigned By</th>
+                <th>Action</th>
+            </tr>
+            {% for task in tasks %}
+            <tr>
+                <td>{{ task[0] }}</td>
+                <td>{{ task[1] }}</td>
+                <td>{{ task[2] }}</td>
+                <td>{{ task[3] }}</td>
+                <td>{{ task[4] }}</td>
+                <td>
+                    {% if task[3] != 'complete' %}
+                        <form action="{{ url_for('complete_task') }}" method="POST">
+                            <input type="hidden" name="title" value="{{ task[0] }}">
+                            <input type="hidden" name="email" value="{{ member_email }}">
+                            <button class="btn" type="submit">Mark Complete</button>
+                        </form>
+                    {% else %}
+                        <button class="btn" disabled>✅ Completed</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; text-align: center;">
+            <img src="{{ url_for('static', filename='task-image.webp') }}" 
+                alt="No tasks available"
+                style="width:300px; height:auto; margin-bottom: 1px;">
+            
+            <p style="font-weight:bold; font-size: 34px; color:gray;">
+                You don’t have any tasks assigned yet.
+            </p>
+        </div>
+
+    {% endif %}
     <script>
         window.addEventListener("pageshow", function (event) {
             if (event.persisted || (window.performance && window.performance.getEntriesByType("navigation")[0].type === "back_forward")) {

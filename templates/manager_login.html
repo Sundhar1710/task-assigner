@@ -6,12 +6,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='manager_login.css') }}">
 </head>
 <body>
-    {% if error %}
-        <div class="alert alert-warning" role="alert"> {{ error }}</div>
-    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, msg in messages %}
+                <div class="alert alert-{{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <div class="container">
-        <h1><b>Welcome to the Task Management System</b></h1>
+        <h1><b>Welcome to the Task Assigner</b></h1>
 
         <div class="card member-card">
             <h2>🧑‍🤝‍🧑 I'm a Admin</h2>

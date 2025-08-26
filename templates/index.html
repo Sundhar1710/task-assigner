@@ -8,9 +8,21 @@
     <h1>Select Your Role</h1>
 
     <div class="container">
-        <a href="{{ url_for('manager_login') }}" class="role-box">Team Manager</a>
-        <a href="{{ url_for('leader_login') }}" class="role-box">Team Leader</a>
-        <a href="{{ url_for('member_login') }}" class="role-box">Team Member</a>
+        <a href="{{ url_for('manager_login') }}" class="role-box">
+            <img src="{{ url_for('static', filename='man-index.webp') }}" alt="Manager Icon"
+            style="max-width: 120px; max-height: 120px;">
+            <span>Team Manager</span>
+        </a>
+        <a href="{{ url_for('leader_login') }}" class="role-box">
+            <img src="{{ url_for('static', filename='lead-index.webp') }}" alt="Leader Icon"
+            style="max-width: 120px; max-height: 120px;">
+            <span>Team Leader</span>
+        </a>
+        <a href="{{ url_for('member_login') }}" class="role-box">
+            <img src="{{ url_for('static', filename='mem-index.webp') }}" alt="Member Icon"
+            style="max-width: 120px; max-height: 120px;">
+            <span>Team Member</span>
+        </a>
     </div>
 
 </body>

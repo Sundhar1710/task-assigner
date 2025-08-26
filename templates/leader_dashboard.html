@@ -6,9 +6,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='leader.css') }}"> 
 </head>
 <body>
-    {% if error %}
-        <div class="alert alert-warning" role="alert">{{ error }}</div>
-    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, msg in messages %}
+                <div class="alert alert-{{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <h1>💼 Leader Dashboard</h1>
     <div class="top-bar">
@@ -28,38 +32,49 @@
         </select>
     </form>
 
+    
     <a href="{{ url_for('leader_analysis') }}" class="btn-team-details">👥 Team Details</a>
-    <!-- Tasks Table -->
-    <table border="1" cellpadding="8">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Due Date</th>
-                <th>Status</th>
-                <th>Email</th>
-                <th>Created At</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for task in tasks %}
-            <tr>
-                <td>{{ task[1] }}</td>
-                <td>{{ task[2] or '—' }}</td>
-                <td>{{ task[3] }}</td>
-                <td>{{ task[4] }}</td>
-                <td>{{ task[6] }}</td>
-                <td>{{ task[5] }}</td>
-                <td>
-                    <a href="/edit_task/{{ task[0] }}">✏️ Edit</a> |
-                    <a href="/delete_task/{{ task[0] }}" onclick="return confirm('Are you sure?')">🗑️ Delete</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
+    {% if tasks and tasks|length > 0 %}
+        <table border="1" cellpadding="8">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Email</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td>{{ task[1] }}</td>
+                    <td>{{ task[2] or '—' }}</td>
+                    <td>{{ task[3] }}</td>
+                    <td>{{ task[4] }}</td>
+                    <td>{{ task[6] }}</td>
+                    <td>{{ task[5] }}</td>
+                    <td>
+                        <a href="/edit_task/{{ task[0] }}">✏️ Edit</a> |
+                        <a href="/delete_task/{{ task[0] }}" onclick="return confirm('Are you sure?')">🗑️ Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; text-align: center;">
+                <img src="{{ url_for('static', filename='leader-image.webp') }}" 
+                    alt="No tasks available"
+                    style="width:300px; height:auto; margin-bottom: 1px;">
+                
+                <p style="font-weight:bold; font-size: 34px; color:gray;">
+                    No tasks have been assigned to your team members yet.
+                </p>
+            </div>
+        {% endif %}
     <script>
         // Reload fix on back navigation
         window.addEventListener("pageshow", function (event) {

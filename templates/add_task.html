@@ -6,24 +6,32 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='add_task.css') }}">
 </head>
 <body>
-    {% if error %}
-        <div class="alert alert-warning" role="alert">{{ error }}</div>
-    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, msg in messages %}
+                <div class="alert alert-{{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <div class="container">
         <h1>Add New Task</h1>
-        <form method="POST" action="{{ url_for('add_task') }}">
+        <form method="POST" id="addtaskForm" action="{{ url_for('add_task') }}">
             <label>Title:</label>
             <input type="text" name="title" required>
             
-            <label for="emails">Assign To (Select one or more):</label>
-            <div>
+            <label for="emails" class="form-label">Assign To (Select one or more):</label>
+            <div class="d-flex flex-wrap gap-2">
                 {% for m in team_members %}
-                    <div>
-                        <input type="checkbox" name="emails" value="{{ m }}">
-                        {{ m }}
+                    <div class="form-check form-check-inline p-3 border rounded shadow-sm">
+                        <input class="form-check-input" type="checkbox" name="emails" id="member_{{ loop.index }}" value="{{ m }}">
+                        <label class="form-check-label fw-semibold" for="member_{{ loop.index }}">
+                            {{ m }}
+                        </label>
                     </div>
                 {% endfor %}
             </div>
+
 
             <label>Description:</label>
             <textarea name="description"></textarea>
@@ -35,6 +43,13 @@
         </form>
         <br>
         <a href="{{ url_for('leader_dashboard') }}">🔙 Back to Task List</a>
+    </div>
+
+    <div id="loading-message">
+        <div class="text-center">
+            <div class="spinner-border text-light" role="status"></div>
+            <p class="mt-3">Sending mail to task members</p>
+        </div>
     </div>
 
     <script>
@@ -49,6 +64,15 @@
         setTimeout(() => {
             document.querySelector('.alert').remove();
         }, 3000);
+        
+        
+        document.getElementById("addtaskForm").addEventListener("submit", function(event) {
+            event.preventDefault(); // stop immediate navigation
+            document.getElementById("loading-message").style.display = "flex";
+            setTimeout(() => {
+                    event.target.submit();
+                }, 200); 
+        });
     </script>
 </body>
 </html>

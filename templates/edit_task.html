@@ -5,9 +5,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='edit_task.css') }}">
 </head>
 <body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, msg in messages %}
+                <div class="alert alert-{{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
     <div class="container">
         <h2>Edit Task - ID {{ task[0] }}</h2>
-        <form method="POST">
+        <form method="POST" id="edittaskForm">
         <label>Title:</label>
         <input type="text" name="title" value="{{ task[1] }}" required>
 
@@ -27,10 +34,26 @@
     </form>
         <br><a href="/leader">⬅️ Back to Dashboard</a>
     </div>
+
+    <div id="loading-message">
+        <div class="text-center">
+            <div class="spinner-border text-light" role="status"></div>
+            <p class="mt-3">Please wait it take few seconds to edit....</p>
+        </div>
+    </div>
+
     <script>
         // Set min date to today
         const today = new Date().toISOString().split('T')[0];
         document.getElementById("due_date").setAttribute("min", today);
+
+        document.getElementById("edittaskForm").addEventListener("submit", function(event) {
+            event.preventDefault(); // stop immediate navigation
+            document.getElementById("loading-message").style.display = "flex";
+            setTimeout(() => {
+                    event.target.submit();
+                }, 200); 
+        });
     </script>
 </body>
 </html>

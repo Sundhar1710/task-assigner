@@ -7,8 +7,10 @@ from generate_password import generate_password
 import os, secrets
 from datetime import datetime, date
 
+
+# correct the duplicate members in adding team members in team manager field
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))  # Needed for sessions
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))  
 
 @app.after_request
 def add_header(response):
@@ -16,7 +18,6 @@ def add_header(response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "-1"
     return response
-
 
 @app.route('/')
 def index():
@@ -43,11 +44,10 @@ def manager_login():
             return redirect(url_for("managers_dashboard"))
 
         else:
-            error = f"🤦‍♂️ Wrong credientals!"
-            return redirect(url_for("manager_login", error=error))
+            flash(f"🤦‍♂️ Wrong credientals!", 'danger')
+            return redirect(url_for("manager_login"))
 
-    error = request.args.get("error")
-    return render_template("manager_login.html", error=error)
+    return render_template("manager_login.html")
 
 #manager dashboard
 @app.route("/managers_dashboard")
@@ -76,11 +76,10 @@ def managers_dashboard():
 
     cursor.execute(query)
 
-
     teams = cursor.fetchall()
     conn.close()
 
-    # ✅ get success/error from query params
+    #get success/error from query params
     success = request.args.get("success")
     error = request.args.get("error")
 
@@ -126,22 +125,23 @@ def create_team():
 
         except mysql.connector.IntegrityError:
             #leder_email is unique in database so if we try with same email this except will happen
-            error = "This leader already has a team!"
-            return redirect(url_for('create_team', error=error)) 
+            flash("This leader already has a team!", "danger")
+            return redirect(url_for('create_team')) 
         
         for m_email in member_emails:
             if m_email.strip():
                 cursor.execute("SELECT * FROM teams WHERE leader_email = %s",(m_email,))
                 temp = cursor.fetchone()
-                if temp:
-                    error = f"⚠️ {m_email} is a leader, try with different member!"
+                if temp: 
+                    flash(f"⚠️ {m_email} is a leader, try with different member!", "danger")
                     conn.rollback()
-                    return redirect(url_for('create_team', error=error))
+                    return redirect(url_for('create_team'))
                 else:
                     cursor.execute("SELECT password FROM team_members WHERE member_email = %s", (m_email,))
                     member_exist = cursor.fetchone()
                     if member_exist:
                         exist_password = member_exist[0]
+                        print(exist_password)
                         cursor.execute(
                             "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
                             (team_id, m_email.strip(), exist_password)
@@ -149,7 +149,7 @@ def create_team():
                         # Send email to team members
                         subject = "✅ Assigned to New Team"
                         body = f"Hello,\n\nYou are assigned to a new team {team_id}. Please use your existing password to login.. \
-                        \nTeam ID: {team_id}\nPassword: USE EXIST PASSWORD WHICH PREVIOUSLY USED FOR LOGIN AS MEMBER.\n \
+                        \n\nTeam ID: {team_id}\nPassword: USE EXIST PASSWORD WHICH PREVIOUSLY USED FOR LOGIN AS MEMBER.\n\n \
                         Don't share password with anyone\n\nThanks."
                         send_email(m_email, subject, body)
                     else:
@@ -159,17 +159,20 @@ def create_team():
                             (team_id, m_email.strip(), password)
                         )
                         subject = "✅ Assigned to New Team"
-                        body = f"Hello,\n\nYou are assigned to team {team_id}. For further details mail to {email} (your leader E-mail) \
-                        \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
+                        body = f"Hello,\n\nYou are assigned to team {team_id}. \
+                        \nTeam ID: {team_id}\nPassword: {password} \
+                        \nLogin with your credientals to see the tasks. \
+                        \nDon't share password with anyone\n\nThanks."
                         send_email(m_email, subject, body)
 
         conn.commit()
         conn.close()
 
-        return redirect(url_for("managers_dashboard", success = f"👍 Team Created Successfully & Mail Send to Leader & Members"))
+        flash(f"👍 Team created successfully!", "success")
+        return redirect(url_for("managers_dashboard"))
     
-    error = request.args.get('error')  # ✅ get error from query string
-    return render_template("create_team.html", error=error)
+    
+    return render_template("create_team.html")
 
 #manager edit team
 @app.route("/edit_team/<team_id>", methods=["GET", "POST"])
@@ -200,9 +203,9 @@ def edit_team(team_id):
                 # Send email to team leader
                 subject = "✅ Assigned as a New Team Leader to Exist Team"
                 body = f"Hello,\n\nYour where assigned as a new Leader for {team_id}. \
-                \nTeam ID: {team_id}\nPassword: {password}\n \
-                Login with those credentials to modify or assign task to team members\n \
-                Don't share password with anyone\n\nThanks."
+                \nTeam ID: {team_id}\nPassword: {password} \
+                \nLogin with those credentials to modify or assign task to team members\n \
+                \nDon't share password with anyone\n\nThanks."
                 send_email(leader_email, subject, body)
 
             to_delete = set(members) - set(member_emails) #members -> old team members
@@ -216,23 +219,42 @@ def edit_team(team_id):
             # add new one and send mail
             if to_add:
                 for m_email in to_add:
-                    password = generate_password()
-                    cursor.execute(
-                        "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
-                        (team_id, m_email, password,)
-                    )
-                    subject = "✅ Assigned as a Team Member to Exist Team"
-                    body = f"Hello,\n\nYour where assigned as a Member for {team_id}. \
-                    \nTeam ID: {team_id}\nPassword: {password}\n Don't share password with anyone\n\nThanks."
-                    send_email(m_email, subject, body)
+                    cursor.execute("SELECT password FROM team_members WHERE member_email = %s", (m_email,))
+                    member_exist = cursor.fetchone()
+                    if member_exist:
+                        exist_password = member_exist[0]
+                        print(exist_password)
+                        cursor.execute(
+                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                            (team_id, m_email.strip(), exist_password)
+                        )
+                        # Send email to team members
+                        subject = "✅ Assigned to New Team"
+                        body = f"Hello,\n\nYou are assigned to a new team {team_id}. Please use your existing password to login.. \
+                        \n\nTeam ID: {team_id}\nPassword: USE EXIST PASSWORD WHICH PREVIOUSLY USED FOR LOGIN AS MEMBER.\n\n \
+                        Don't share password with anyone\n\nThanks."
+                        send_email(m_email, subject, body)
+                    else:
+                        password = generate_password()
+                        cursor.execute(
+                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                            (team_id, m_email, password,)
+                        )
+                        subject = "✅ Assigned as a Team Member to Exist Team"
+                        body = f"Hello,\n\nYour where assigned as a Member for {team_id}. \
+                        \nTeam ID: {team_id}\nPassword: {password} \
+                        \nLogin to see further details \
+                        \nDon't share password with anyone\n\nThanks."
+                        send_email(m_email, subject, body)
             conn.commit()
             conn.close()
-            return redirect(url_for("managers_dashboard", success="👍 Team successfully edited!"))
-
+            flash("👍 Team successfully edited!", "success")
+            return redirect(url_for("managers_dashboard"))
         except mysql.connector.InterfaceError:
             conn.rollback()
             conn.close()
-            return redirect(url_for("managers_dashboard", error="⚠️ Something went wrong while editing!"))
+            flash("⚠️ Something went wrong while editing!", "danger")
+            return redirect(url_for("managers_dashboard"))
 
     conn.close()
     return render_template("edit_team.html", team=team, members=members)
@@ -253,12 +275,14 @@ def delete_team(team_id):
     except Exception:
         conn.rollback()
         conn.close()
-        return redirect(url_for("managers_dashboard", error="🙄 Something went wrong while Deleting the Team Try again!"))
+        flash("🙄 Something went wrong while Deleting the Team Try again!", "danger")
+        return redirect(url_for("managers_dashboard"))
     
     conn.commit()
     conn.close()    
 
-    return redirect(url_for("managers_dashboard", success=f"⚰️ Team Deleted Successfully!"))
+    flash(f"⚰️ Team Deleted Successfully!", "success")
+    return redirect(url_for("managers_dashboard"))
 
 @app.route("/manager_logout")
 def manager_logout():
@@ -276,19 +300,17 @@ def leader_login():
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM teams WHERE leader_email=%s AND password=%s", (email, password))
             user = cursor.fetchone()
-            team_id = user[1]
         conn.close()
 
         if user:
             session["leader_email"] = email
-            session["team_id"] = team_id
+            session["team_id"] = user[1]
             return redirect(url_for("leader_dashboard"))  # change to leader dashboard later
         else:
-            error = f"🤦‍♂️ Wrong credientals!"
-            return redirect(url_for("leader_login", error=error))
+            flash(f"🤦‍♂️ Wrong credientals!", 'danger')
+            return redirect(url_for("leader_login"))
         
-    error = request.args.get('error')
-    return render_template("leader_login.html", error=error)
+    return render_template("leader_login.html")
 
 @app.route('/leader')
 def leader_dashboard():
@@ -317,8 +339,7 @@ def leader_dashboard():
     cursor.close()
     conn.close()
 
-    error = request.args.get('error')
-    return render_template('leader_dashboard.html', tasks=tasks, error=error)
+    return render_template('leader_dashboard.html', tasks=tasks)
 
 @app.route("/leader_logout")
 def leader_logout():
@@ -345,15 +366,16 @@ def member_login():
             session["team_id"] = team_id
             return redirect(url_for("member_dashboard")) 
         else:
-            error = f"🙅‍♂️ Not registered as Member to Any Team!"
-            return redirect(url_for('member_login', error=error))
+            flash(f"🙅‍♂️ Wrong credential!", 'danger')
+            return redirect(url_for('member_login'))
         
-    error = request.args.get('error')
-    return render_template("member_login.html", error=error)
+
+    return render_template("member_login.html")
 
 @app.route('/member_dashboard')
 def member_dashboard():
     if "member_email" not in session or "team_id" not in session:
+        flash("Session time out! Try to login again", 'warning')
         return redirect(url_for("member_login"))
     
     member_email = session.get('member_email')
@@ -400,7 +422,8 @@ def add_task():
     temp = cursor.fetchone()
     if not temp:
         conn.close()
-        return redirect(url_for("leader_dashboard", error="⚠️ You don’t belong to any team!"))
+        flash('⚠️ You don’t belong to any team!', 'danger')
+        return redirect(url_for("leader_dashboard"))
 
     team_id = temp[0]
 
@@ -428,7 +451,8 @@ def add_task():
     
         if not selected_emails:
             conn.close()
-            return redirect(url_for("add_task", error="⚠️ Please select at least one member!"))
+            flash('⚠️ Please select at least one member!','warning')
+            return redirect(url_for("add_task"))
 
         try:
             for m_email in selected_emails:
@@ -441,8 +465,8 @@ def add_task():
                 subject = "📝 New Task Assigned"
                 body = f"Hello,\n\nA new task has been assigned to you:\n\n" \
                        f"📌 Title: {title}\n" \
-                       f"📝 Description: {description or 'No Description'}\n" \
-                       f"📅 Due Date: {due_date}\n\n" \
+                       f"📅 Due Date: {due_date}\n" \
+                       f"for further details please login\n\n" \
                        f"This is a system generated mail so don't reply\n\n" \
                        f"Thanks,\nTask Assigner System"
                 send_email(m_email, subject, body)
@@ -452,10 +476,12 @@ def add_task():
             conn.rollback()
             conn.close()
             print("Error adding task:", e)
-            return redirect(url_for("leader_dashboard", error="⚠️ Failed to add task."))
+            flash('⚠️ Failed to add task.','warning')
+            return redirect(url_for("leader_dashboard"))
 
         conn.close()
-        return redirect(url_for('leader_dashboard', success="✅ Task(s) assigned successfully!"))
+        flash('✅ Task(s) assigned successfully','success')
+        return redirect(url_for('leader_dashboard'))
 
     conn.close()
     error = request.args.get('error')
@@ -484,13 +510,13 @@ def edit_task(task_id):
             # Convert string to date
             due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
         except ValueError:
-            error = "Invalid date format. Please use MM-DD-YYYY."
-            return redirect(url_for("edit_task", error=error))
+            flash("Invalid date format. Please use MM-DD-YYYY.", 'warning')
+            return redirect(url_for("edit_task"))
 
         # Validate that the date is not in the past
         if due_date < date.today():
-            error = "Due date cannot be in the past."
-            return redirect(url_for("edit_task",error=error))
+            flash("⚠️ Due date cannot be in the past.", 'warning')
+            return redirect(url_for("edit_task"))
 
         cursor.execute("""
             UPDATE tasks
@@ -504,13 +530,13 @@ def edit_task(task_id):
             f"Hello,\n\n"
             f"A task assigned to you has been updated:\n\n"
             f"📌 Title: {title}\n"
-            f"📝 Description: {description or 'No Description'}\n"
             f"📅 Due Date: {due_date}\n"
-            f"📘 Status: {status}\n\n"
+            f"for more details please login\n\n"
             f"This is a system generated mail so don't reply\n\n"
-            f"Thanks,\nTask Management System"
+            f"Thanks,\nTask Assigner System"
         )
         try:
+            flash("👍 Team edit Successful", 'success')
             send_email(email_id, subject, body)
         except Exception as e:
             print("Edit email error:", e)
@@ -532,6 +558,7 @@ def delete_task(task_id):
     conn.commit()
     cursor.close()
     conn.close()
+    flash('deleted done!', 'success')
     return redirect(url_for('leader_dashboard'))
 
 @app.route('/complete_task', methods=['POST'])
@@ -557,7 +584,6 @@ def analysis(team_id):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # ---- keep your existing queries exactly as-is ----
     # Total tasks for this team
     cursor.execute("SELECT COUNT(*) AS total FROM tasks WHERE team_id = %s", (team_id,))
     total_tasks = cursor.fetchone()[0]
@@ -565,9 +591,8 @@ def analysis(team_id):
     # Pending tasks for this team
     cursor.execute("SELECT COUNT(*) AS pending FROM tasks WHERE status='pending' AND team_id = %s", (team_id,))
     pending_tasks = cursor.fetchone()[0]
-    # --------------------------------------------------
 
-    # Team leader email (leader_email is stored in teams)
+    # Team leader email 
     cursor.execute("SELECT leader_email FROM teams WHERE team_id = %s", (team_id,))
     row = cursor.fetchone()
     leader_email = row[0] if row else "N/A"
@@ -576,9 +601,6 @@ def analysis(team_id):
     cursor.execute("SELECT COUNT(*) FROM team_members WHERE team_id = %s", (team_id,))
     member_count = cursor.fetchone()[0]
 
-    # Members list + number of tasks assigned to each member
-    # NOTE: Based on your original schema, tasks.email is the assignee (the member),
-    # and tasks.assigned_by is the person who assigned it (likely the leader).
     cursor.execute("""
         SELECT tm.member_email, COUNT(t.id) AS task_count
         FROM team_members tm
@@ -590,7 +612,7 @@ def analysis(team_id):
     """, (team_id,))
     member_rows = cursor.fetchall()
 
-    # Convert tuples -> dicts so Jinja can use m.member_email / m.task_count
+    # Convert tuples -> dicts so m.member_email / m.task_count
     members = [{"member_email": r[0], "task_count": int(r[1] or 0)} for r in member_rows]
 
     conn.close()
@@ -600,17 +622,17 @@ def analysis(team_id):
         team_id=team_id,
         total=total_tasks,
         pending=pending_tasks,
-        leader_email=leader_email,   # used by your leader card
-        member_count=member_count,   # used by your leader card
-        members=members              # used by your members grid
+        leader_email=leader_email,   
+        member_count=member_count,   
+        members=members              
     )
 
 #leader_analysis
 @app.route('/leader_analysis')
 def leader_analysis():
     if "team_id" not in session:
-        error = f"something went wrong while fetching the team details"
-        return redirect(url_for("leader_dashboard",error=error))
+        flash("something went wrong while fetching the team details")
+        return redirect(url_for("leader_dashboard"))
     
     team_id = session.get('team_id')
 

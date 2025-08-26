@@ -98,6 +98,7 @@ def create_team():
         email = session.get('manager_email')
 
         if not leader_email or not member_emails or not email:
+            flash("🤔 Login Again", "warning")
             return redirect(url_for("create_team"))
 
         # Generate unique team_id, password
@@ -113,65 +114,113 @@ def create_team():
             manager_id = temp[0]
 
             cursor.execute(
-            "INSERT INTO teams (team_id, leader_email, password, manager_id) VALUES (%s, %s, %s, %s)",
-            (team_id, leader_email, leader_password, manager_id)
-            )
-            
-            # Send email to team leader
-            subject = "✅ Assigned as a Team Leader"
-            body = f"Hello,\n\nYour team has been created successfully. \
-            \nTeam ID: {team_id}\nPassword: {leader_password}\n Don't share password with anyone\n\nThanks."
-            send_email(leader_email, subject, body)
+            "INSERT INTO teams (team_id, leader_email, password, manager_id) VALUES (%s, %s, %s, %s)", (team_id, leader_email, leader_password, manager_id)) 
 
         except mysql.connector.IntegrityError:
             #leder_email is unique in database so if we try with same email this except will happen
-            flash("This leader already has a team!", "danger")
+            flash("😪 This leader already has a team!", "danger")
             return redirect(url_for('create_team')) 
         
+        validated_members = []  # store members who passed validation
+        seen = set()  #for duplicate
+
         for m_email in member_emails:
-            if m_email.strip():
-                cursor.execute("SELECT * FROM teams WHERE leader_email = %s",(m_email,))
-                temp = cursor.fetchone()
-                if temp: 
-                    flash(f"⚠️ {m_email} is a leader, try with different member!", "danger")
-                    conn.rollback()
-                    return redirect(url_for('create_team'))
-                else:
-                    cursor.execute("SELECT password FROM team_members WHERE member_email = %s", (m_email,))
-                    member_exist = cursor.fetchone()
-                    if member_exist:
-                        exist_password = member_exist[0]
-                        print(exist_password)
-                        cursor.execute(
-                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
-                            (team_id, m_email.strip(), exist_password)
-                        )
-                        # Send email to team members
-                        subject = "✅ Assigned to New Team"
-                        body = f"Hello,\n\nYou are assigned to a new team {team_id}. Please use your existing password to login.. \
-                        \n\nTeam ID: {team_id}\nPassword: USE EXIST PASSWORD WHICH PREVIOUSLY USED FOR LOGIN AS MEMBER.\n\n \
-                        Don't share password with anyone\n\nThanks."
-                        send_email(m_email, subject, body)
-                    else:
-                        password = generate_password()
-                        cursor.execute(
-                            "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
-                            (team_id, m_email.strip(), password)
-                        )
-                        subject = "✅ Assigned to New Team"
-                        body = f"Hello,\n\nYou are assigned to team {team_id}. \
-                        \nTeam ID: {team_id}\nPassword: {password} \
-                        \nLogin with your credientals to see the tasks. \
-                        \nDon't share password with anyone\n\nThanks."
-                        send_email(m_email, subject, body)
+            m_email = m_email.strip()
+            if not m_email:
+                continue
 
-        conn.commit()
-        conn.close()
+            # check duplicates in the submitted form itself
+            if m_email in seen:
+                conn.rollback()
+                conn.close()
+                flash(f"⚠️ {m_email} is entered two or more times!", "danger")
+                return redirect(url_for("create_team"))
+            seen.add(m_email)
 
-        flash(f"👍 Team created successfully!", "success")
+
+            # check if member is a leader in some other team
+            cursor.execute("SELECT * FROM teams WHERE leader_email = %s", (m_email,))
+            if cursor.fetchone():
+                conn.rollback()
+                conn.close()
+                flash(f"⚠️ {m_email} is a leader, cannot be added as member!", "danger")
+                return redirect(url_for("create_team"))
+
+            # check for password reuse
+            cursor.execute("SELECT password FROM team_members WHERE member_email = %s", (m_email,))
+            member_exist = cursor.fetchone()
+        
+            if member_exist:
+                validated_members.append(
+                    {"email": m_email, "password": member_exist[0], "new": False}
+                )
+            else:
+                validated_members.append(
+                    {"email": m_email, "password": generate_password(), "new": True}
+                )
+
+        # Step 2: Insert all validated members
+        try:
+            for member in validated_members:
+                cursor.execute(
+                    "INSERT INTO team_members (team_id, member_email, password) VALUES (%s, %s, %s)",
+                    (team_id, member["email"], member["password"]))
+
+            conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            flash(f"🙄 Error while creating team: {str(e)}", "danger")
+            return redirect(url_for("create_team"))
+
+        finally:
+            conn.close()
+
+        # Step 3: Send emails after success
+        # Leader mail
+        subject = "✅ Assigned as a Team Leader"
+        body = f"""Hello,
+
+            Your team has been created successfully.
+            Team ID: {team_id}
+            Password: {leader_password}
+
+            Don't share your password with anyone.
+
+            Thanks."""
+        send_email(leader_email, subject, body)
+
+        # Members mail
+        for member in validated_members:
+            if member["new"]:
+                subject = "✅ Assigned as a Team Member"
+                body = f"""Hello,
+
+                You are assigned to team {team_id}.
+                Team ID: {team_id}
+                Password: {member['password']}
+
+                Login with your credentials to see the tasks.
+                Don't share your password with anyone.
+
+                Thanks."""
+            else:
+                subject = "✅ Assigned as a Team Member for exist Team"
+                body = f"""Hello,
+
+                You are assigned to a new team {team_id}. Please use your existing password to login.
+
+                Team ID: {team_id}
+                Password: USE EXISTING PASSWORD (same as before)
+
+                Don't share your password with anyone.
+
+                Thanks."""
+            send_email(member["email"], "✅ Assigned to New Team", body)
+
+        flash("👍 Team created successfully!", "success")
         return redirect(url_for("managers_dashboard"))
-    
-    
     return render_template("create_team.html")
 
 #manager edit team

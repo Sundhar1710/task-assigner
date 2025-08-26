@@ -30,6 +30,10 @@ def manager_login():
         email = request.form["email"]
         password = request.form["password"]
 
+        if not email.endswith("@gmail.com"):
+            flash("⚠️ Only Gmail addresses are allowed!", "warning")
+            return redirect(url_for("manager_login"))
+
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -100,6 +104,10 @@ def create_team():
         if not leader_email or not member_emails or not email:
             flash("🤔 Login Again", "warning")
             return redirect(url_for("create_team"))
+        
+        if not leader_email.endswith("@gmail.com"):
+            flash("⚠️ Only Gmail addresses are allowed!", "warning")
+            return redirect(url_for("create_team"))
 
         # Generate unique team_id, password
         team_id = "TEAM" + ''.join(random.choices(string.digits, k=5))
@@ -128,6 +136,10 @@ def create_team():
             m_email = m_email.strip()
             if not m_email:
                 continue
+
+            if not m_email.endswith("@gmail.com"):
+                flash("⚠️ Only Gmail addresses are allowed!", "warning")
+                return redirect(url_for("create_team"))
 
             # check duplicates in the submitted form itself
             if m_email in seen:
@@ -243,6 +255,15 @@ def edit_team(team_id):
         leader_email = request.form["leader_email"]
         member_emails = request.form.getlist("member_email")
 
+        if not leader_email.endswith("@gmail.com"):
+            flash("⚠️ Only Gmail addresses are allowed!", "warning")
+            return redirect(url_for("edit_team", team_id=team_id))
+        
+        for m in member_emails:
+            if not m.endswith("@gmail.com"):
+                flash("⚠️ Only Gmail addresses are allowed!", "warning")
+                return redirect(url_for('edit_team', team_id=team_id))
+
         try:
             if leader_email != team[0]:
                 # Update leader email
@@ -310,7 +331,7 @@ def edit_team(team_id):
 
 @app.route("/delete_team/<team_id>")
 def delete_team(team_id):
-    record = team_id
+
     if "manager_email" not in session:
         return redirect(url_for("manager_login"))
     
@@ -344,6 +365,10 @@ def leader_login():
     if request.method == "POST":
         email = request.form["email"]
         password = request.form["password"]
+
+        if not email.endswith("@gmail.com"):
+            flash("⚠️ Only Gmail addresses are allowed!", "warning")
+            return redirect(url_for("leader_login"))
 
         conn = get_connection()
         with conn.cursor() as cursor:
@@ -403,6 +428,10 @@ def member_login():
         password = request.form["password"]
         email = request.form["email"]
         team_id = request.form["team_id"]
+
+        if not email.endswith("@gmail.com"):
+            flash("⚠️ Only Gmail addresses are allowed!", "warning")
+            return redirect(url_for("member_login"))
         
         conn = get_connection()
         cursor = conn.cursor()
@@ -505,6 +534,7 @@ def add_task():
 
         try:
             for m_email in selected_emails:
+                
                 cursor.execute("""
                     INSERT INTO tasks (title, description, due_date, email, status, 
                     assigned_by, team_id) VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -699,7 +729,6 @@ def leader_analysis():
     cursor.close()
    
     return render_template('teamdetails.html', team=data)
-
 
 if __name__ == '__main__':
     app.run(debug=True)
